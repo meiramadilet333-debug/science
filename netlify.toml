@@ -1,6 +1,6 @@
 [build]
   command = "pnpm run build"
-  publish = "dist"
+  publish = "artifacts/scientific-navigator/dist/public"
 
 [[redirects]]
   from = "/*"
