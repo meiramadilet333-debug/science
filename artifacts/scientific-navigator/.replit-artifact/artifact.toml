@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Научный навигатор"
+description = "Рабочий интерфейс системы сопровождения научной работы: от формулировки идеи до подготовки публикации, с честно обозначенными будущими модулями и без фиктивных научных данных."
+version = "1.0.0"
+id = "artifacts/scientific-navigator"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20869
+
+[services.development]
+run = "corepack pnpm --filter @workspace/scientific-navigator run dev"
+
+[services.production]
+build = [ "corepack", "pnpm", "--filter", "@workspace/scientific-navigator", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/scientific-navigator/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20869"
+BASE_PATH = "/"

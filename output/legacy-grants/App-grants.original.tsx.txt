@@ -1,0 +1,1194 @@
+type ModuleConfig = { path: string; title: string; eyebrow: string; summary: string; icon: typeof Compass; planned: string[]; note: string };
+const modules: Record<string, ModuleConfig> = {
+  '/topic-search': { path: '/topic-search', title: 'Поиск научной темы', eyebrow: 'От области к вопросу', summary: 'Инструмент для поиска возможных исследовательских тем с учётом предметной области и ваших интересов.', icon: Search, planned: ['Уточнение области, дисциплины и интересов', 'Поиск тем по научным публикациям', 'Ориентиры по актуальности и доступности материалов'], note: 'Поиск тем и публикаций ещё не подключён. В этом разделе пока нет рекомендаций или готовых тем.' },
+  '/grants': { path: '/grants', title: 'Научные гранты', eyebrow: 'Каталог актуальных конкурсов', summary: 'Каталог официальных конкурсов научного финансирования с подтверждённым открытым приёмом заявок.', icon: BriefcaseBusiness, planned: ['Официальные объявления НЦГНТЭ Казахстана'], note: 'Показываются только объявления с подтверждёнными датами приёма и официальной страницей конкурса.' },
+};
+
+type GrantPreliminaryAssessment = {
+  strengths: string[];
+  justificationQuestions: string[];
+  limitations: string[];
+  recommendations: string[];
+};
+
+type GrantAnswerHelp = {
+  meaning: string;
+  informationToProvide: string;
+  examples: string[];
+  ifUnknown: string;
+};
+
+type GrantConcept = {
+  title: string;
+  scientificProblem: string;
+  relevance: string;
+  goal: string;
+  tasks: string[];
+  novelty: string;
+  methods: string[];
+  expectedScientificResults: string[];
+  expectedPracticalResults: string[];
+  implementationStages: string[];
+  risks: string[];
+  preliminaryAssessment: GrantPreliminaryAssessment;
+  disclaimer: string;
+};
+
+type GrantProjectDraft = {
+  id: string;
+  idea: string;
+  direction: string;
+  durationMonths: number;
+  expectedResult: string;
+  concept: GrantConcept | null;
+  savedAt: number;
+};
+
+const GRANT_PROJECTS_KEY = 'nauchny-navigator-grant-projects-v1';
+const GRANT_OPPORTUNITIES_KEY = 'nauchny-navigator-grant-opportunities-v1';
+
+const GRANT_RESEARCHER_CATEGORIES = [
+  'Студенты и магистранты',
+  'Докторанты',
+  'Молодые учёные',
+  'Исследовательские коллективы',
+  'Научные организации',
+  'Не указано в публикации',
+  'Без ограничений / иное',
+] as const;
+const GRANT_FUNDING_TYPES = [
+  'Грантовое финансирование',
+  'Целевое финансирование',
+  'Индивидуальный грант',
+  'Стипендия или стажировка',
+  'Оборудование и инфраструктура',
+  'Программно-целевое финансирование',
+  'Не указано в публикации',
+  'Иное',
+] as const;
+const GRANT_OPPORTUNITY_STATUSES = [
+  'Приём открыт',
+  'Скоро откроется',
+  'Приём завершён',
+  'Статус не подтверждён',
+] as const;
+const GRANT_DEADLINE_FILTERS = [
+  { value: 'Приём открыт', label: 'Приём открыт' },
+  { value: 'Скоро откроется', label: 'Скоро откроется' },
+  { value: 'Приём завершён', label: 'Приём завершён' },
+  { value: 'Статус не подтверждён', label: 'Статус не подтверждён' },
+] as const;
+
+type GrantOpportunity = {
+  id: string;
+  title: string;
+  organizer: string;
+  direction: string;
+  researcherCategory: string;
+  fundingType: string;
+  status: string;
+  applicationPeriod: string;
+  conditions: string;
+  officialUrl: string;
+  isSaved: boolean;
+  projectId: string;
+  verifiedAt: number;
+  description?: string;
+  country?: string;
+  region?: string;
+  fundingAmount?: string;
+  fundingForm?: string;
+  documentsUrl?: string | null;
+  verificationNote?: string;
+  sourceKind?: 'manual' | 'ncste';
+  criteria?: GrantOpportunityCriteria;
+};
+
+type GrantOpportunityCriteria = {
+  direction: 'matched' | 'not_found' | 'not_requested';
+  region: 'matched' | 'not_found' | 'not_requested';
+  organizationType: 'mentioned' | 'not_found' | 'not_requested';
+  projectStage: 'mentioned' | 'not_found' | 'not_requested';
+  fundingAmount: 'matched' | 'not_specified' | 'not_requested';
+};
+
+type GrantOpportunitySearchResponse = {
+  checkedAt: string;
+  sourceName: string;
+  sourceUrl: string;
+  sourceAvailable: boolean;
+  message: string;
+  opportunities: Array<{
+    id: string;
+    title: string;
+    organizer: string;
+    description: string;
+    direction: string;
+    country: string;
+    region: string;
+    deadline: string;
+    eligibility: string;
+    fundingAmount: string;
+    fundingType: string;
+    fundingForm: string;
+    status: 'open' | 'upcoming' | 'closed' | 'unconfirmed';
+    statusLabel: string;
+    sourceUrl: string;
+    documentsUrl: string | null;
+    checkedAt: string;
+    verificationNote: string;
+    criteria: GrantOpportunityCriteria;
+  }>;
+};
+
+type GrantOpportunityForm = Omit<GrantOpportunity, 'id' | 'isSaved' | 'projectId' | 'verifiedAt'> & {
+  officialConfirmed: boolean;
+};
+
+const EMPTY_GRANT_OPPORTUNITY_FORM: GrantOpportunityForm = {
+  title: '',
+  organizer: '',
+  direction: '',
+  researcherCategory: GRANT_RESEARCHER_CATEGORIES[0],
+  fundingType: GRANT_FUNDING_TYPES[0],
+  status: 'Статус не подтверждён',
+  applicationPeriod: '',
+  conditions: '',
+  officialUrl: '',
+  officialConfirmed: false,
+};
+
+function isGrantOpportunity(value: unknown): value is GrantOpportunity {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.id === 'string' &&
+    typeof item.title === 'string' &&
+    typeof item.organizer === 'string' &&
+    typeof item.direction === 'string' &&
+    typeof item.researcherCategory === 'string' &&
+    typeof item.fundingType === 'string' &&
+    typeof item.status === 'string' &&
+    typeof item.applicationPeriod === 'string' &&
+    typeof item.conditions === 'string' &&
+    typeof item.officialUrl === 'string' &&
+    typeof item.isSaved === 'boolean' &&
+    typeof item.projectId === 'string' &&
+    typeof item.verifiedAt === 'number'
+  );
+}
+
+function getGrantProjects(): GrantProjectDraft[] {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(GRANT_PROJECTS_KEY) || '[]');
+    if (!Array.isArray(stored)) return [];
+    return stored.flatMap((value) => {
+      if (!value || typeof value !== 'object') return [];
+      const item = value as Record<string, unknown>;
+      if (
+        typeof item.id !== 'string' ||
+        typeof item.idea !== 'string' ||
+        typeof item.direction !== 'string' ||
+        typeof item.expectedResult !== 'string' ||
+        typeof item.savedAt !== 'number' ||
+        typeof item.durationMonths !== 'number'
+      ) return [];
+      const concept = item.concept && typeof item.concept === 'object'
+        ? (item.concept as Record<string, unknown>)
+        : null;
+      const assessment = concept && typeof concept.preliminaryAssessment === 'object' ? concept.preliminaryAssessment as Record<string, unknown> : null;
+      const normalizedAssessment: GrantPreliminaryAssessment = assessment ? {
+        strengths: Array.isArray(assessment.strengths) ? assessment.strengths.filter((item): item is string => typeof item === 'string') : [],
+        justificationQuestions: Array.isArray(assessment.justificationQuestions) ? assessment.justificationQuestions.filter((item): item is string => typeof item === 'string') : [],
+        limitations: Array.isArray(assessment.limitations) ? assessment.limitations.filter((item): item is string => typeof item === 'string') : [],
+        recommendations: Array.isArray(assessment.recommendations) ? assessment.recommendations.filter((item): item is string => typeof item === 'string') : [],
+      } : {
+        strengths: [],
+        justificationQuestions: [],
+        limitations: [],
+        recommendations: [],
+      };
+      const normalizedConcept: GrantConcept | null = concept &&
+        typeof concept.title === 'string' &&
+        typeof concept.scientificProblem === 'string' &&
+        typeof concept.relevance === 'string' &&
+        typeof concept.goal === 'string' &&
+        typeof concept.novelty === 'string' &&
+        typeof concept.disclaimer === 'string' &&
+        Array.isArray(concept.tasks) && Array.isArray(concept.methods) &&
+        Array.isArray(concept.expectedScientificResults) && Array.isArray(concept.expectedPracticalResults) &&
+        Array.isArray(concept.implementationStages) && Array.isArray(concept.risks)
+        ? {
+          title: concept.title,
+          scientificProblem: concept.scientificProblem,
+          relevance: concept.relevance,
+          goal: concept.goal,
+          tasks: concept.tasks.filter((task): task is string => typeof task === 'string'),
+          novelty: concept.novelty,
+          methods: concept.methods.filter((method): method is string => typeof method === 'string'),
+          expectedScientificResults: concept.expectedScientificResults.filter((itemValue): itemValue is string => typeof itemValue === 'string'),
+          expectedPracticalResults: concept.expectedPracticalResults.filter((itemValue): itemValue is string => typeof itemValue === 'string'),
+          implementationStages: concept.implementationStages.filter((itemValue): itemValue is string => typeof itemValue === 'string'),
+          risks: concept.risks.filter((itemValue): itemValue is string => typeof itemValue === 'string'),
+          preliminaryAssessment: normalizedAssessment,
+          disclaimer: concept.disclaimer,
+        }
+        : null;
+      return [{
+        id: item.id,
+        idea: item.idea,
+        direction: item.direction,
+        durationMonths: item.durationMonths,
+        expectedResult: item.expectedResult,
+        concept: normalizedConcept,
+        savedAt: item.savedAt,
+      }];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function saveGrantProjects(projects: GrantProjectDraft[]) {
+  localStorage.setItem(GRANT_PROJECTS_KEY, JSON.stringify(projects));
+}
+
+function GrantOpportunities({ projects }: { projects: GrantProjectDraft[] }) {
+  const { locale } = useLocale();
+  const [opportunities, setOpportunities] = useState<GrantOpportunity[]>([]);
+  const [searchResponse, setSearchResponse] = useState<GrantOpportunitySearchResponse | null>(null);
+  const [searchInput, setSearchInput] = useState({
+    direction: '',
+    country: 'Казахстан',
+    region: '',
+    organizationType: '',
+    projectStage: '',
+    requestedFunding: '',
+  });
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [storageReady, setStorageReady] = useState(false);
+  const [storageError, setStorageError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [form, setForm] = useState<GrantOpportunityForm>(EMPTY_GRANT_OPPORTUNITY_FORM);
+  const [searchText, setSearchText] = useState('');
+  const [directionFilter, setDirectionFilter] = useState('');
+  const [regionFilter, setRegionFilter] = useState('');
+  const [fundingFilter, setFundingFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [savedOnly, setSavedOnly] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(GRANT_OPPORTUNITIES_KEY);
+      const parsed: unknown = stored ? JSON.parse(stored) : [];
+      if (!Array.isArray(parsed) || !parsed.every(isGrantOpportunity)) {
+        throw new Error('Локальный список конкурсов повреждён или имеет неподдерживаемый формат.');
+      }
+      setOpportunities(parsed);
+      setStorageReady(true);
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : 'Не удалось прочитать сохранённые конкурсы.');
+    }
+  }, []);
+
+  const directions = useMemo(
+    () => [...new Set([
+      ...opportunities.map((item) => item.direction),
+      ...(searchResponse?.opportunities.map((item) => item.direction) ?? []),
+    ].filter((direction) => direction !== 'Не указано в кратком объявлении'))].sort((a, b) => a.localeCompare(b, 'ru')),
+    [opportunities, searchResponse],
+  );
+
+  const liveOpportunities = useMemo((): GrantOpportunity[] =>
+    (searchResponse?.opportunities ?? []).map((item) => {
+      const saved = opportunities.find((candidate) => candidate.id === item.id);
+      const researcherCategory = /молодых?\s+уч[её]ных/iu.test(`${item.title} ${item.eligibility}`)
+        ? 'Молодые учёные'
+        : 'Не указано в публикации';
+      const status = item.statusLabel;
+      return {
+        id: item.id,
+        title: item.title,
+        organizer: item.organizer,
+        direction: item.direction,
+        researcherCategory,
+        fundingType: item.fundingType,
+        status,
+        applicationPeriod: item.deadline,
+        conditions: item.eligibility,
+        officialUrl: item.sourceUrl,
+        isSaved: saved?.isSaved ?? false,
+        projectId: saved?.projectId ?? '',
+        verifiedAt: Date.parse(item.checkedAt),
+        description: item.description,
+        country: item.country,
+        region: item.region,
+        fundingAmount: item.fundingAmount,
+        fundingForm: item.fundingForm,
+        documentsUrl: item.documentsUrl,
+        verificationNote: item.verificationNote,
+        sourceKind: 'ncste',
+        criteria: item.criteria,
+      };
+    }),
+    [searchResponse, opportunities],
+  );
+
+  const allOpportunities = useMemo(() => {
+    const liveIds = new Set(liveOpportunities.map((item) => item.id));
+    const savedOnlyItems = opportunities.filter((item) => !liveIds.has(item.id));
+    return [...liveOpportunities, ...savedOnlyItems].sort((left, right) => {
+      const priority = (status: string) => {
+        if (status === 'Приём открыт' || status === 'Открыт') return 0;
+        if (status === 'Скоро откроется' || status === 'Планируется') return 1;
+        if (status === 'Статус не подтверждён') return 2;
+        if (status === 'Приём завершён' || status === 'Закрыт') return 3;
+        return 4;
+      };
+      return priority(left.status) - priority(right.status) || right.verifiedAt - left.verifiedAt;
+    });
+  }, [liveOpportunities, opportunities]);
+
+  const visibleOpportunities = useMemo(() => {
+    const query = searchText.trim().toLocaleLowerCase();
+    return allOpportunities.filter((item) => {
+      const matchesText = !query || [
+        item.title,
+        item.organizer,
+        item.direction,
+        item.conditions,
+        item.description ?? '',
+        item.region ?? '',
+      ].some((text) => text.toLocaleLowerCase().includes(query));
+      return matchesText &&
+        (!directionFilter || item.direction === directionFilter) &&
+        (!regionFilter || item.region === regionFilter) &&
+        (!fundingFilter || item.fundingType === fundingFilter) &&
+        (!statusFilter || item.status === statusFilter) &&
+        (!savedOnly || item.isSaved);
+    });
+  }, [allOpportunities, searchText, directionFilter, regionFilter, fundingFilter, statusFilter, savedOnly]);
+
+  const regions = useMemo(
+    () => [...new Set(allOpportunities.map((item) => item.region).filter((region): region is string => !!region && region !== 'Не указано в публикации'))].sort((a, b) => a.localeCompare(b, 'ru')),
+    [allOpportunities],
+  );
+
+  const runOfficialSearch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!searchInput.country.trim()) {
+      setSearchError('Укажите страну, для которой нужно искать конкурсы.');
+      return;
+    }
+    setIsSearching(true);
+    setSearchError('');
+    setSearchResponse(null);
+    try {
+      const response = await fetch('/api/grants/opportunities/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(searchInput),
+      });
+      const body = await response.text();
+      let payload: GrantOpportunitySearchResponse | { error?: string } | null = null;
+      if (body.trim()) {
+        try {
+          payload = JSON.parse(body) as GrantOpportunitySearchResponse | { error?: string };
+        } catch {
+          throw new Error('Сервер вернул некорректный ответ. Попробуйте ещё раз.');
+        }
+      }
+      if (!response.ok) {
+        const message = payload && 'error' in payload && typeof payload.error === 'string'
+          ? payload.error
+          : 'Не удалось проверить официальные источники. Попробуйте позже.';
+        throw new Error(message);
+      }
+      if (
+        !payload ||
+        !('opportunities' in payload) ||
+        !Array.isArray(payload.opportunities) ||
+        typeof payload.checkedAt !== 'string' ||
+        typeof payload.sourceAvailable !== 'boolean'
+      ) {
+        throw new Error('Сервер вернул неполный результат поиска. Попробуйте ещё раз.');
+      }
+      setSearchResponse(payload);
+    } catch (error) {
+      setSearchError(error instanceof Error ? error.message : 'Не удалось проверить официальные источники.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const persistOpportunities = (next: GrantOpportunity[]) => {
+    try {
+      localStorage.setItem(GRANT_OPPORTUNITIES_KEY, JSON.stringify(next));
+      setOpportunities(next);
+      setStorageError('');
+      return true;
+    } catch {
+      setStorageError('Не удалось сохранить конкурсы в браузере. Проверьте свободное место и настройки локального хранилища.');
+      return false;
+    }
+  };
+
+  const submitOpportunity = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError('');
+    if (!storageReady) {
+      setFormError('Список конкурсов недоступен для записи. Сначала устраните ошибку локального хранилища.');
+      return;
+    }
+    const fields = [
+      form.title,
+      form.organizer,
+      form.direction,
+      form.applicationPeriod,
+      form.conditions,
+      form.officialUrl,
+    ];
+    if (fields.some((value) => !value.trim())) {
+      setFormError('Заполните название, организатора, направление, сроки, условия и ссылку на официальный источник.');
+      return;
+    }
+    if (!form.officialConfirmed) {
+      setFormError('Перед добавлением подтвердите, что сведения сверены с официальной публикацией.');
+      return;
+    }
+    let officialUrl: URL;
+    try {
+      officialUrl = new URL(form.officialUrl.trim());
+    } catch {
+      setFormError('Укажите корректную ссылку на официальную публикацию.');
+      return;
+    }
+    if (officialUrl.protocol !== 'https:' || officialUrl.username || officialUrl.password) {
+      setFormError('Для официального источника используйте безопасную HTTPS-ссылку без данных авторизации.');
+      return;
+    }
+
+    const opportunity: GrantOpportunity = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title: form.title.trim(),
+      organizer: form.organizer.trim(),
+      direction: form.direction.trim(),
+      researcherCategory: form.researcherCategory,
+      fundingType: form.fundingType,
+      status: form.status,
+      applicationPeriod: form.applicationPeriod.trim(),
+      conditions: form.conditions.trim(),
+      officialUrl: officialUrl.toString(),
+      isSaved: false,
+      projectId: '',
+      verifiedAt: Date.now(),
+    };
+    if (persistOpportunities([opportunity, ...opportunities])) {
+      setForm(EMPTY_GRANT_OPPORTUNITY_FORM);
+      setShowAddForm(false);
+    }
+  };
+
+  const updateOpportunity = (id: string, update: Partial<GrantOpportunity>) => {
+    const current = opportunities.find((item) => item.id === id) ??
+      liveOpportunities.find((item) => item.id === id);
+    if (!current) return;
+    const next = opportunities.some((item) => item.id === id)
+      ? opportunities.map((item) => item.id === id ? { ...item, ...update } : item)
+      : [{ ...current, ...update }, ...opportunities];
+    persistOpportunities(next);
+  };
+
+  const toggleSaved = (item: GrantOpportunity) => {
+    if (item.isSaved) {
+      if (item.sourceKind === 'ncste') {
+        removeOpportunity(item.id);
+      } else {
+        updateOpportunity(item.id, { isSaved: false });
+      }
+      return;
+    }
+    updateOpportunity(item.id, { isSaved: true });
+  };
+
+  const removeOpportunity = (id: string) => {
+    if (persistOpportunities(opportunities.filter((item) => item.id !== id))) {
+      setStorageError('');
+    }
+  };
+
+  return <section className="page-card mb-6 p-5 sm:p-7" aria-labelledby="grant-opportunities-title" data-testid="section-grant-opportunities">
+    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p className="eyebrow mb-2">{t("Актуальные конкурсы · Казахстан")}</p>
+        <h2 id="grant-opportunities-title" className="serif m-0 text-[22px] text-[#293a49]">{t("Поиск грантов")}</h2>
+        <p className="mb-0 mt-2 max-w-3xl text-[12px] leading-relaxed text-[#5f6b6a]">{t("Ищите конкурсы в официальных объявлениях НЦГНТЭ и уточняйте применимость к вашему проекту. Автоматически подтверждённые даты показываются отдельно от записей с нераспознанными сроками.")}</p>
+      </div>
+    </div>
+
+    <div className="mb-5 rounded-md border border-[#e9e1cf] bg-[#fbf8ef] p-3 text-[11px] leading-relaxed text-[#6c6658]" role="note">
+      {t("В поиске подключены официальные объявления НЦГНТЭ Казахстана. Источник и условия приводятся в карточке; дата проверки относится к моменту запроса. Грант не считается открытым без распознанного будущего дедлайна. Другие страны и источники пока не подключены. ")}</div>
+
+    {storageError && <p className="mb-4 rounded-md border border-[#ead4d0] bg-[#fbf2f0] p-3 text-[12px] text-[#8b4b45]" role="alert" data-testid="status-grant-opportunity-storage-error">{storageError} {t(" Изменения не были применены.")}</p>}
+
+    <form onSubmit={runOfficialSearch} className="mb-5 rounded-lg border border-[#e2e7e1] bg-[#fafbf8] p-4 sm:p-5" data-testid="form-grant-opportunity-search">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="serif m-0 text-[17px] text-[#293a49]">{t("Параметры поиска")}</h3>
+        <span className="text-[10px] text-[#77827d]">{t("Поиск выполняется по опубликованным сведениям, не через ИИ")}</span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Научное направление ")}<input className="prompt-input mt-1 min-h-0 py-2" maxLength={300} value={searchInput.direction} onChange={(event) => setSearchInput((current) => ({ ...current, direction: event.target.value }))} placeholder={t("Например: водная безопасность")} data-testid="input-grant-search-direction" />
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Страна ")}<input className="prompt-input mt-1 min-h-0 py-2" maxLength={100} required value={searchInput.country} onChange={(event) => setSearchInput((current) => ({ ...current, country: event.target.value }))} data-testid="input-grant-search-country" />
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Регион ")}<input className="prompt-input mt-1 min-h-0 py-2" maxLength={200} value={searchInput.region} onChange={(event) => setSearchInput((current) => ({ ...current, region: event.target.value }))} placeholder={t("Область или город")} data-testid="input-grant-search-region" />
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Тип организации ")}<input className="prompt-input mt-1 min-h-0 py-2" maxLength={200} value={searchInput.organizationType} onChange={(event) => setSearchInput((current) => ({ ...current, organizationType: event.target.value }))} placeholder={t("Университет, институт, НПО…")} data-testid="input-grant-search-organization" />
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Стадия проекта ")}<input className="prompt-input mt-1 min-h-0 py-2" maxLength={200} value={searchInput.projectStage} onChange={(event) => setSearchInput((current) => ({ ...current, projectStage: event.target.value }))} placeholder={t("Идея, пилот, масштабирование…")} data-testid="input-grant-search-stage" />
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Желаемый размер финансирования ")}<input className="prompt-input mt-1 min-h-0 py-2" maxLength={100} value={searchInput.requestedFunding} onChange={(event) => setSearchInput((current) => ({ ...current, requestedFunding: event.target.value }))} placeholder={t("Например: до 20 млн тенге")} data-testid="input-grant-search-funding" />
+        </label>
+      </div>
+      <button type="submit" className="primary-button mt-4" disabled={isSearching} data-testid="button-search-grant-opportunities">
+        <Search size={15} />{isSearching ? t("Проверяем объявления…") : t("Найти актуальные конкурсы")}
+      </button>
+      {searchError && <p className="mb-0 mt-3 text-[12px] text-[#a0443f]" role="alert" data-testid="status-grant-search-error">{searchError}</p>}
+    </form>
+
+    {isSearching && <div className="mb-5 flex items-center gap-2 rounded-md border border-[#dce5dc] bg-[#f4f7f2] p-4 text-[12px] text-[#53645e]" role="status" data-testid="status-grant-search-loading">
+      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#d8e1d8] border-t-[#4d795f]" />
+      {t("Получаем актуальный список и проверяем страницы конкурсов НЦГНТЭ… ")}</div>}
+
+    {searchResponse && <div className="mb-5 rounded-md border border-[#dce5dc] bg-[#f4f7f2] p-4 text-[11px] leading-relaxed text-[#465951]" role="status" data-testid="grant-search-source-status">
+      <p className="mb-1 font-semibold">{searchResponse.sourceAvailable ? searchResponse.message : t("Источник не подключён для выбранной страны")}</p>
+      <p className="m-0">{t("Источник: ")}<a href={searchResponse.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-[#426957] underline">{searchResponse.sourceName} <ExternalLink size={11} className="inline" /></a> {t(" · Проверено: ")}{new Date(searchResponse.checkedAt).toLocaleString(locale === 'kk' ? 'kk-KZ' : 'ru-RU')}</p>
+    </div>}
+
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <h3 className="serif m-0 text-[18px] text-[#293a49]">{t("Найденные и сохранённые конкурсы")}</h3>
+      <button type="button" className="soft-button" onClick={() => { setShowAddForm((current) => !current); setFormError(''); }} disabled={!storageReady} data-testid="button-add-grant-opportunity">
+        <Plus size={14} />{showAddForm ? t("Закрыть форму") : t("Добавить вручную")}
+      </button>
+    </div>
+
+    {showAddForm && <form onSubmit={submitOpportunity} className="mb-6 rounded-lg border border-[#dce4da] bg-[#f8faf7] p-4 sm:p-5" data-testid="form-grant-opportunity">
+      <h3 className="serif mb-4 mt-0 text-[18px] text-[#293a49]">{t("Новая проверенная запись")}</h3>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Название конкурса ")}<input className="prompt-input mt-1 min-h-0 py-2" maxLength={300} required value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} data-testid="input-grant-opportunity-title" />
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Организатор ")}<input className="prompt-input mt-1 min-h-0 py-2" maxLength={200} required value={form.organizer} onChange={(event) => setForm((current) => ({ ...current, organizer: event.target.value }))} data-testid="input-grant-opportunity-organizer" />
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Научное направление ")}<input className="prompt-input mt-1 min-h-0 py-2" maxLength={200} required value={form.direction} onChange={(event) => setForm((current) => ({ ...current, direction: event.target.value }))} data-testid="input-grant-opportunity-direction" />
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Категория исследователя ")}<select className="prompt-input mt-1 min-h-0 py-2" value={form.researcherCategory} onChange={(event) => setForm((current) => ({ ...current, researcherCategory: event.target.value as GrantOpportunityForm['researcherCategory'] }))} data-testid="select-grant-opportunity-category">
+            {GRANT_RESEARCHER_CATEGORIES.map((category) => <option key={category}>{category}</option>)}
+          </select>
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Тип финансирования ")}<select className="prompt-input mt-1 min-h-0 py-2" value={form.fundingType} onChange={(event) => setForm((current) => ({ ...current, fundingType: event.target.value as GrantOpportunityForm['fundingType'] }))} data-testid="select-grant-opportunity-funding">
+            {GRANT_FUNDING_TYPES.map((fundingType) => <option key={fundingType}>{fundingType}</option>)}
+          </select>
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b]">{t("Статус конкурса ")}<select className="prompt-input mt-1 min-h-0 py-2" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as GrantOpportunityForm['status'] }))} data-testid="select-grant-opportunity-status">
+            {GRANT_OPPORTUNITY_STATUSES.map((status) => <option key={status}>{status}</option>)}
+          </select>
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b] sm:col-span-2">{t("Сроки подачи, как указано в источнике ")}<input className="prompt-input mt-1 min-h-0 py-2" maxLength={300} required placeholder={t("Например: до даты, указанной в официальном объявлении")} value={form.applicationPeriod} onChange={(event) => setForm((current) => ({ ...current, applicationPeriod: event.target.value }))} data-testid="input-grant-opportunity-deadline" />
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b] sm:col-span-2">{t("Основные условия участия, подтверждённые источником ")}<textarea className="prompt-input mt-1 min-h-[76px] py-2" maxLength={3000} required value={form.conditions} onChange={(event) => setForm((current) => ({ ...current, conditions: event.target.value }))} data-testid="input-grant-opportunity-conditions" />
+        </label>
+        <label className="text-[11px] font-semibold text-[#40505b] sm:col-span-2">{t("Ссылка на официальную публикацию (HTTPS) ")}<input type="url" className="prompt-input mt-1 min-h-0 py-2" maxLength={1000} required placeholder="https://…" value={form.officialUrl} onChange={(event) => setForm((current) => ({ ...current, officialUrl: event.target.value }))} data-testid="input-grant-opportunity-url" />
+        </label>
+      </div>
+      <label className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-[#52625f]">
+        <input type="checkbox" className="mt-0.5 accent-[#63836e]" checked={form.officialConfirmed} onChange={(event) => setForm((current) => ({ ...current, officialConfirmed: event.target.checked }))} data-testid="checkbox-grant-opportunity-verified" />
+        <span>{t("Я сверил название, сроки и условия с публикацией НЦГНТЭ или уполномоченного государственного органа Казахстана.")}</span>
+      </label>
+      {formError && <p className="mb-0 mt-3 text-[12px] text-[#a0443f]" role="alert" data-testid="status-grant-opportunity-form-error">{formError}</p>}
+      <button type="submit" className="primary-button mt-4" data-testid="button-submit-grant-opportunity">{t("Сохранить проверенную запись ")}<Check size={14} /></button>
+    </form>}
+
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <label className="text-[11px] font-semibold text-[#40505b] sm:col-span-2 lg:col-span-1">{t("Поиск по каталогу ")}<input className="prompt-input mt-1 min-h-0 py-2" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder={t("Название, организатор, условие…")} data-testid="input-grant-opportunity-search" />
+      </label>
+      <label className="text-[11px] font-semibold text-[#40505b]">{t("Научное направление ")}<select className="prompt-input mt-1 min-h-0 py-2" value={directionFilter} onChange={(event) => setDirectionFilter(event.target.value)} data-testid="filter-grant-opportunity-direction">
+          <option value="">{t("Все направления")}</option>
+          {directions.map((direction) => <option key={direction} value={direction}>{direction}</option>)}
+        </select>
+      </label>
+      <label className="text-[11px] font-semibold text-[#40505b]">{t("Регион ")}<select className="prompt-input mt-1 min-h-0 py-2" value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} data-testid="filter-grant-opportunity-region">
+          <option value="">{t("Все регионы / не указан")}</option>
+          {regions.map((region) => <option key={region}>{region}</option>)}
+        </select>
+      </label>
+      <label className="text-[11px] font-semibold text-[#40505b]">{t("Тип финансирования ")}<select className="prompt-input mt-1 min-h-0 py-2" value={fundingFilter} onChange={(event) => setFundingFilter(event.target.value)} data-testid="filter-grant-opportunity-funding">
+          <option value="">{t("Все типы")}</option>
+          {GRANT_FUNDING_TYPES.map((fundingType) => <option key={fundingType}>{fundingType}</option>)}
+        </select>
+      </label>
+      <label className="text-[11px] font-semibold text-[#40505b]">{t("Срок подачи ")}<select className="prompt-input mt-1 min-h-0 py-2" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} data-testid="filter-grant-opportunity-status">
+          <option value="">{t("Любой срок")}</option>
+          {GRANT_DEADLINE_FILTERS.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
+        </select>
+      </label>
+      <label className="flex items-center gap-2 text-[11px] font-semibold text-[#40505b] sm:col-span-2 lg:col-span-1">
+        <input type="checkbox" className="accent-[#63836e]" checked={savedOnly} onChange={(event) => setSavedOnly(event.target.checked)} data-testid="filter-grant-opportunity-saved" />
+        {t("Только сохранённые конкурсы ")}</label>
+    </div>
+
+    <p className="mb-3 mt-4 text-[11px] text-[#6d7975]" role="status" data-testid="grant-opportunity-result-count">{t("Показано: ")}{visibleOpportunities.length} {t(" из ")}{allOpportunities.length}</p>
+    {visibleOpportunities.length === 0
+      ? <div className="rounded-md border border-dashed border-[#d5ddd4] bg-[#fafbf8] p-5 text-[12px] leading-relaxed text-[#64716b]" data-testid="grant-opportunity-empty">
+        {allOpportunities.length === 0 ? t("Пока нет результатов. Запустите проверку объявлений НЦГНТЭ или добавьте конкурс вручную после сверки с официальной публикацией.") : t("По заданным фильтрам конкурсы не найдены. Измените условия поиска или сбросьте фильтры.")}
+      </div>
+      : <div className="space-y-3">
+        {visibleOpportunities.map((item) => <article key={item.id} className="rounded-lg border border-[#e2e7e1] bg-white p-4 sm:p-5" data-testid={`card-grant-opportunity-${item.id}`}>
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="serif mb-1 mt-0 text-[18px] text-[#293a49]">{item.title}</h3>
+              <p className="m-0 text-[11px] text-[#65716e]">{item.organizer} · {item.direction}</p>
+            </div>
+            <span className={`status-pill ${item.status === 'Приём открыт' || item.status === 'Открыт' ? 'border-[#cfe2d4] bg-[#f0f7f1] text-[#37634a]' : ''}`}>{item.status}</span>
+          </div>
+          {item.description && <p className="mb-3 text-[12px] leading-relaxed text-[#5f6b6a]">{item.description}</p>}
+          <dl className="grid gap-x-5 gap-y-2 text-[11px] leading-relaxed sm:grid-cols-2">
+            <div><dt className="font-semibold text-[#40505b]">{t("Сроки подачи")}</dt><dd className="m-0 text-[#5f6b6a]">{item.applicationPeriod}</dd></div>
+            <div><dt className="font-semibold text-[#40505b]">{t("Регион / категория")}</dt><dd className="m-0 text-[#5f6b6a]">{item.country || t("Страна не указана")} · {item.region || t("Регион не указан")} · {item.researcherCategory}</dd></div>
+            <div><dt className="font-semibold text-[#40505b]">{t("Тип и форма финансирования")}</dt><dd className="m-0 text-[#5f6b6a]">{item.fundingType} · {item.fundingForm || t("Форма не указана")}</dd></div>
+            <div><dt className="font-semibold text-[#40505b]">{t("Размер финансирования")}</dt><dd className="m-0 text-[#5f6b6a]">{item.fundingAmount || t("Не указан в источнике")}</dd></div>
+            <div className="sm:col-span-2"><dt className="font-semibold text-[#40505b]">{t("Основные условия")}</dt><dd className="m-0 whitespace-pre-wrap text-[#5f6b6a]">{item.conditions}</dd></div>
+          </dl>
+          {item.criteria && <div className="mt-3 rounded-md border border-[#e9e1cf] bg-[#fbf8ef] p-3 text-[10px] leading-relaxed text-[#6c6658]">
+            <p className="mb-1 font-semibold">{t("Сверка с параметрами поиска")}</p>
+            <p className="m-0">{t("Направление: ")}{item.criteria.direction === 'matched' ? t("упомянуто в объявлении") : item.criteria.direction === 'not_found' ? t("совпадение не подтверждено") : t("не задано")} {t(" · Регион: ")}{item.criteria.region === 'matched' ? t("упомянут в объявлении") : item.criteria.region === 'not_found' ? t("не указан в источнике") : t("не задан")} {t(" · Организация: ")}{item.criteria.organizationType === 'mentioned' ? t("упомянута") : item.criteria.organizationType === 'not_found' ? t("не указана в источнике") : t("не задана")} {t(" · Стадия: ")}{item.criteria.projectStage === 'mentioned' ? t("упомянута") : item.criteria.projectStage === 'not_found' ? t("не указана в источнике") : t("не задана")} {t(" · Сумма: ")}{item.criteria.fundingAmount === 'matched' ? t("подтверждена") : item.criteria.fundingAmount === 'not_specified' ? t("не подтверждена в источнике") : t("не задана")}</p>
+          </div>}
+          {item.verificationNote && <p className="mb-0 mt-3 text-[10px] leading-relaxed text-[#6c6658]" role="note">{item.verificationNote}</p>}
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[#eeeae2] pt-3">
+            <a href={item.officialUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#426957] underline underline-offset-2" data-testid={`link-grant-opportunity-source-${item.id}`}>
+              {t("Официальный источник ")}<ExternalLink size={13} />
+            </a>
+            {item.documentsUrl && <a href={item.documentsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#426957] underline underline-offset-2">{t("Конкурсная документация ")}<ExternalLink size={13} /></a>}
+            <button type="button" className="soft-button" onClick={() => toggleSaved(item)} aria-pressed={item.isSaved} data-testid={`button-save-grant-opportunity-${item.id}`}>
+              <Bookmark size={13} />{item.isSaved ? t("Сохранено") : t("Сохранить конкурс")}
+            </button>
+            <label className="inline-flex items-center gap-2 text-[11px] text-[#52625f]">{t("Связать с проектом ")}<select className="rounded-md border border-[#dfe4dc] bg-white px-2 py-1.5 text-[11px] text-[#52625f]" value={item.projectId} onChange={(event) => updateOpportunity(item.id, { projectId: event.target.value })} aria-label={`Грантовый проект для конкурса ${item.title}`} data-testid={`select-grant-opportunity-project-${item.id}`}>
+                <option value="">{t("Не привязан")}</option>
+                {projects.map((project) => <option key={project.id} value={project.id}>{project.concept?.title || project.idea.slice(0, 70) || t("Черновик проекта")}</option>)}
+              </select>
+            </label>
+            {opportunities.some((saved) => saved.id === item.id) && <button type="button" className="ml-auto text-[10px] font-semibold text-[#8a4944] underline underline-offset-2" onClick={() => removeOpportunity(item.id)} data-testid={`button-remove-grant-opportunity-${item.id}`}>{t("Удалить из сохранённых")}</button>}
+          </div>
+          <p className="mb-0 mt-2 text-[10px] text-[#7a837f]">{item.sourceKind === 'ncste' ? t("Последняя проверка источника") : t("Дата ручной проверки")}: {Number.isNaN(item.verifiedAt) ? t("не указана") : new Date(item.verifiedAt).toLocaleString(locale === 'kk' ? 'kk-KZ' : 'ru-RU')}{t(". Повторно проверьте актуальность сроков перед подачей.")}</p>
+        </article>)}
+      </div>}
+  </section>;
+}
+
+function GrantsPage() {
+  const { locale } = useLocale();
+  const [savedProjects, setSavedProjects] = useState<GrantProjectDraft[]>([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [idea, setIdea] = useState('');
+  const [direction, setDirection] = useState('');
+  const [durationMonths, setDurationMonths] = useState(12);
+  const [expectedResult, setExpectedResult] = useState('');
+  const [concept, setConcept] = useState<GrantConcept | null>(null);
+  const [clarificationQuestions, setClarificationQuestions] = useState<string[]>([]);
+  const [clarificationAnswers, setClarificationAnswers] = useState<string[]>([]);
+  const [isAwaitingClarification, setIsAwaitingClarification] = useState(false);
+  const [activeHelpIndex, setActiveHelpIndex] = useState<number | null>(null);
+  const [answerHelpByIndex, setAnswerHelpByIndex] = useState<Record<number, {
+    loading: boolean;
+    error: string;
+    result: GrantAnswerHelp | null;
+  }>>({});
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    const drafts = getGrantProjects();
+    setSavedProjects(drafts);
+    if (drafts[0]) {
+      setSelectedId(drafts[0].id);
+      setIdea(drafts[0].idea);
+      setDirection(drafts[0].direction);
+      setDurationMonths(drafts[0].durationMonths);
+      setExpectedResult(drafts[0].expectedResult);
+      setConcept(drafts[0].concept);
+    }
+  }, []);
+
+  const updateArrayField = (
+    field: 'tasks' | 'methods' | 'expectedScientificResults' | 'expectedPracticalResults' | 'implementationStages' | 'risks',
+    index: number,
+    value: string,
+  ) => {
+    setConcept((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        [field]: current[field].map((item, itemIndex) => (itemIndex === index ? value : item)),
+      };
+    });
+  };
+
+  const persistCurrentDraft = () => {
+    const project: GrantProjectDraft = {
+      id: selectedId || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      idea: idea.trim(),
+      direction: direction.trim(),
+      durationMonths,
+      expectedResult: expectedResult.trim(),
+      concept,
+      savedAt: Date.now(),
+    };
+    const nextProjects = [project, ...savedProjects.filter((draft) => draft.id !== project.id)];
+    saveGrantProjects(nextProjects);
+    setSavedProjects(nextProjects);
+    setSelectedId(project.id);
+    setNotice('Черновик сохранён локально. Его можно продолжить позже.');
+    setError('');
+  };
+
+  const generateGrantConcept = async (answers: string[] = []) => {
+    const trimmedIdea = idea.trim();
+    const trimmedDirection = direction.trim();
+    const trimmedExpectedResult = expectedResult.trim();
+    const response = await fetch('/api/grants/concept/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        idea: trimmedIdea,
+        direction: trimmedDirection,
+        durationMonths,
+        expectedResult: trimmedExpectedResult,
+        clarificationAnswers: answers.filter((answer) => answer.trim()).map((answer) => answer.trim()),
+      }),
+    });
+    const responseText = await response.text();
+    let payload: (Partial<GrantConcept> & { error?: string }) | null = null;
+    if (responseText.trim()) {
+      const isHtmlResponse = /<\s*(html|!doctype)[\s>]/i.test(responseText);
+      if (isHtmlResponse) {
+        throw new Error('Сервер вернул HTML вместо JSON. Проверьте, что Node.js backend запущен на localhost:3000 и прокси /api настроен корректно.');
+      }
+      try {
+        payload = JSON.parse(responseText) as Partial<GrantConcept> & { error?: string };
+      } catch {
+        throw new Error('Сервер вернул невалидный ответ. Проверьте работу backend и попробуйте ещё раз.');
+      }
+    }
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Не удалось подготовить предварительную концепцию проекта.');
+    }
+    const generatedConcept = payload as GrantConcept;
+    if (!generatedConcept || !generatedConcept.title || !generatedConcept.scientificProblem) {
+      throw new Error('Сервер не вернул корректную концепцию проекта. Попробуйте позже.');
+    }
+    const normalizedAssessment: GrantPreliminaryAssessment = generatedConcept.preliminaryAssessment ?? {
+      strengths: [],
+      justificationQuestions: [],
+      limitations: [],
+      recommendations: [],
+    };
+    setIsAwaitingClarification(false);
+    setClarificationQuestions([]);
+    setClarificationAnswers([]);
+    setConcept({
+      ...generatedConcept,
+      preliminaryAssessment: normalizedAssessment,
+    });
+    setNotice('Предварительная концепция проекта сформирована. Проверьте и отредактируйте разделы перед сохранением.');
+    setError('');
+  };
+
+  const createProject = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedIdea = idea.trim();
+    const trimmedDirection = direction.trim();
+    const trimmedExpectedResult = expectedResult.trim();
+    if (trimmedIdea.length < 2 || trimmedIdea.length > 5000) {
+      setError('Введите научную идею длиной от 2 до 5000 символов.');
+      return;
+    }
+    if (trimmedDirection.length < 2 || trimmedDirection.length > 200) {
+      setError('Укажите научное направление длиной от 2 до 200 символов.');
+      return;
+    }
+    if (trimmedExpectedResult.length < 2 || trimmedExpectedResult.length > 2000) {
+      setError('Кратко опишите ожидаемый результат длиной от 2 до 2000 символов.');
+      return;
+    }
+    if (!Number.isInteger(durationMonths) || durationMonths < 3 || durationMonths > 84) {
+      setError('Укажите срок проекта от 3 до 84 месяцев.');
+      return;
+    }
+    setIsGenerating(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/grants/concept/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idea: trimmedIdea,
+          direction: trimmedDirection,
+          durationMonths,
+          expectedResult: trimmedExpectedResult,
+        }),
+      });
+      const responseText = await response.text();
+      let payload: { needsClarification?: boolean; questions?: string[]; error?: string } | null = null;
+      if (responseText.trim()) {
+        const isHtmlResponse = /<\s*(html|!doctype)[\s>]/i.test(responseText);
+        if (isHtmlResponse) {
+          throw new Error('Сервер вернул HTML вместо JSON. Проверьте, что Node.js backend запущен на localhost:3000 и прокси /api настроен корректно.');
+        }
+        try {
+          payload = JSON.parse(responseText) as { needsClarification?: boolean; questions?: string[]; error?: string };
+        } catch {
+          throw new Error('Сервер вернул невалидный ответ при проверке научной постановки.');
+        }
+      }
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Не удалось проверить достаточность данных для проекта.');
+      }
+      const needsClarification = Boolean(payload?.needsClarification);
+      if (needsClarification) {
+        const questions = Array.isArray(payload?.questions)
+          ? payload.questions.filter((question): question is string => typeof question === 'string' && question.trim().length > 0).slice(0, 5)
+          : [];
+        if (questions.length === 0) {
+          throw new Error('ИИ не смог сформулировать уточняющие вопросы. Проверьте исходные данные и попробуйте снова.');
+        }
+        setClarificationQuestions(questions);
+        setClarificationAnswers(questions.map(() => ''));
+        setActiveHelpIndex(null);
+        setAnswerHelpByIndex({});
+        setIsAwaitingClarification(true);
+        setNotice('Для подготовки концепции нужно уточнить несколько деталей по научной постановке проекта.');
+        setError('');
+        return;
+      }
+      await generateGrantConcept();
+    } catch (requestError) {
+      const message = requestError instanceof Error ? requestError.message : 'Не удалось подготовить предварительную концепцию проекта.';
+      setError(message);
+      setConcept(null);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const submitClarificationAnswers = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const filledAnswers = clarificationAnswers.map((answer) => answer.trim());
+    if (filledAnswers.some((answer) => !answer)) {
+      setError('Ответьте на все уточняющие вопросы, чтобы продолжить подготовку концепции.');
+      return;
+    }
+    setIsGenerating(true);
+    setError('');
+    setNotice('');
+    try {
+      await generateGrantConcept(filledAnswers);
+      setIsAwaitingClarification(false);
+      setClarificationQuestions([]);
+      setClarificationAnswers([]);
+    } catch (requestError) {
+      const message = requestError instanceof Error ? requestError.message : 'Не удалось подготовить предварительную концепцию проекта.';
+      setError(message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const requestAnswerHelp = async (index: number, force = false) => {
+    if (activeHelpIndex === index && !force) {
+      setActiveHelpIndex(null);
+      return;
+    }
+
+    setActiveHelpIndex(index);
+    const cachedHelp = answerHelpByIndex[index];
+    if (cachedHelp?.result || cachedHelp?.loading) return;
+
+    setAnswerHelpByIndex((current) => ({
+      ...current,
+      [index]: { loading: true, error: '', result: null },
+    }));
+    try {
+      const response = await fetch('/api/grants/concept/answer-help', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idea: idea.trim(),
+          direction: direction.trim(),
+          expectedResult: expectedResult.trim(),
+          durationMonths,
+          question: clarificationQuestions[index],
+        }),
+      });
+      const responseText = await response.text();
+      let payload: (GrantAnswerHelp & { error?: string }) | null = null;
+      if (responseText.trim()) {
+        if (/<\s*(html|!doctype)[\s>]/i.test(responseText)) {
+          throw new Error('Сервер вернул HTML вместо JSON. Проверьте, что backend и прокси /api работают.');
+        }
+        try {
+          payload = JSON.parse(responseText) as GrantAnswerHelp & { error?: string };
+        } catch {
+          throw new Error('Сервер вернул невалидный ответ. Попробуйте запросить подсказку ещё раз.');
+        }
+      }
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Не удалось подготовить подсказку.');
+      }
+      if (
+        !payload ||
+        typeof payload.meaning !== 'string' ||
+        typeof payload.informationToProvide !== 'string' ||
+        !Array.isArray(payload.examples) ||
+        typeof payload.ifUnknown !== 'string'
+      ) {
+        throw new Error('ИИ-сервис вернул неполную подсказку. Попробуйте ещё раз.');
+      }
+      setAnswerHelpByIndex((current) => ({
+        ...current,
+        [index]: {
+          loading: false,
+          error: '',
+          result: {
+            meaning: payload.meaning,
+            informationToProvide: payload.informationToProvide,
+            examples: payload.examples.filter((example): example is string => typeof example === 'string').slice(0, 2),
+            ifUnknown: payload.ifUnknown,
+          },
+        },
+      }));
+    } catch (requestError) {
+      setAnswerHelpByIndex((current) => ({
+        ...current,
+        [index]: {
+          loading: false,
+          error: requestError instanceof Error ? requestError.message : 'Не удалось подготовить подсказку.',
+          result: null,
+        },
+      }));
+    }
+  };
+
+  const loadSavedProject = (draftId: string) => {
+    if (!draftId) {
+      setSelectedId('');
+      setIdea('');
+      setDirection('');
+      setDurationMonths(12);
+      setExpectedResult('');
+      setConcept(null);
+      setError('');
+      setNotice('Новый проект готов для заполнения.');
+      return;
+    }
+    const candidate = savedProjects.find((project) => project.id === draftId);
+    if (!candidate) return;
+    setSelectedId(candidate.id);
+    setIdea(candidate.idea);
+    setDirection(candidate.direction);
+    setDurationMonths(candidate.durationMonths);
+    setExpectedResult(candidate.expectedResult);
+    setConcept(candidate.concept);
+    setError('');
+    setNotice('Черновик открыт для продолжения.');
+  };
+
+  const renderTextList = (
+    field: 'tasks' | 'methods' | 'expectedScientificResults' | 'expectedPracticalResults' | 'implementationStages' | 'risks',
+    label: string,
+    description: string,
+  ) => {
+    if (!concept) return null;
+    return <div className="rounded-md border border-[#e2e7e1] bg-[#f8faf7] p-4">
+      <div className="mb-3 flex items-center justify-between gap-3"><h3 className="serif m-0 text-[16px] text-[#2d3c4b]">{label}</h3><button type="button" className="soft-button" onClick={() => setConcept((current) => current ? { ...current, [field]: [...current[field], ''] } : current)}><span className="inline-flex items-center gap-1">{t("Добавить пункт")}</span></button></div>
+      <p className="mb-3 text-[11px] leading-relaxed text-[#66736b]">{description}</p>
+      <div className="space-y-2">
+        {concept[field].map((item, index) => <textarea key={`${field}-${index}`} className="mt-1 block w-full rounded-md border border-[#dce2da] bg-white px-3 py-2 text-[12px] leading-relaxed text-[#354754]" rows={2} value={item} onChange={(event) => updateArrayField(field, index, event.target.value)} />)}
+      </div>
+    </div>;
+  };
+
+  const renderAssessmentList = (
+    field: keyof GrantPreliminaryAssessment,
+    label: string,
+    description: string,
+  ) => {
+    if (!concept?.preliminaryAssessment) return null;
+    const items = concept.preliminaryAssessment[field] ?? [];
+    return <div className="rounded-md border border-[#e2e7e1] bg-[#f8faf7] p-4">
+      <h3 className="serif m-0 mb-2 text-[16px] text-[#2d3c4b]">{label}</h3>
+      <p className="mb-3 text-[11px] leading-relaxed text-[#66736b]">{description}</p>
+      <div className="space-y-2">
+        {items.map((item, index) => <textarea key={`${field}-${index}`} className="mt-1 block w-full rounded-md border border-[#dce2da] bg-white px-3 py-2 text-[12px] leading-relaxed text-[#354754]" rows={2} value={item} onChange={(event) => setConcept((current) => {
+          if (!current || !current.preliminaryAssessment) return current;
+          const nextAssessment = { ...current.preliminaryAssessment, [field]: current.preliminaryAssessment[field].map((value, itemIndex) => itemIndex === index ? event.target.value : value) };
+          return { ...current, preliminaryAssessment: nextAssessment };
+        })} />)}
+      </div>
+    </div>;
+  };
+
+  return <main className="content-wrap">
+    <header className="mb-7">
+      <p className="eyebrow mb-2">{t("Формирование проекта")}</p>
+      <h1 className="serif m-0 text-[32px] leading-tight text-[#26394a] sm:text-[39px]">{t("Грантовый навигатор")}</h1>
+      <p className="mb-0 mt-2 max-w-2xl text-[13px] leading-relaxed text-[#6e7976]">{t("От научной идеи — к финансируемому проекту.")}</p>
+    </header>
+
+    <section className="page-card mb-6 p-5 sm:p-7">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="serif m-0 text-[22px] text-[#293a49]">{t("Подготовить концепцию проекта")}</h2>
+        <span className="status-pill"><span className="status-dot" />{t("Предварительная версия")}</span>
+      </div>
+
+      <form onSubmit={createProject} className="space-y-5">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <label htmlFor="grant-idea-source" className="mb-2 block text-[11px] font-semibold text-[#40505b]">{t("Сохранённая научная идея или новая формулировка")}</label>
+            <select id="grant-idea-source" className="mt-1 block w-full rounded-md border border-[#dce2da] bg-white px-3 py-2 text-[12px] text-[#354754]" value={selectedId} onChange={(event) => loadSavedProject(event.target.value)} data-testid="select-grant-projects">
+              <option value="">{t("Новая идея")}</option>
+              {savedProjects.map((draft) => <option key={draft.id} value={draft.id}>{draft.idea.slice(0, 80) || t("Черновик")} · {new Date(draft.savedAt).toLocaleDateString(locale === 'kk' ? 'kk-KZ' : 'ru-RU')}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="grant-duration" className="mb-2 block text-[11px] font-semibold text-[#40505b]">{t("Предполагаемый срок проекта, месяцев")}</label>
+            <input id="grant-duration" type="number" min={3} max={84} step={1} className="prompt-input" value={durationMonths} onChange={(event) => setDurationMonths(Number(event.target.value) || 12)} data-testid="input-grant-duration" />
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="grant-idea" className="mb-2 block text-[11px] font-semibold text-[#40505b]">{t("Научная идея")}</label>
+          <textarea id="grant-idea" className="prompt-input min-h-[120px]" value={idea} onChange={(event) => setIdea(event.target.value)} placeholder={t("Опишите исследовательскую идею, проблему или гипотезу, которую вы хотите развивать в проекте.")} data-testid="input-grant-idea" />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <label htmlFor="grant-direction" className="mb-2 block text-[11px] font-semibold text-[#40505b]">{t("Научное направление")}</label>
+            <input id="grant-direction" className="prompt-input" value={direction} onChange={(event) => setDirection(event.target.value)} placeholder={t("Например: искусственный интеллект, климатическая инженерия")} data-testid="input-grant-direction" />
+          </div>
+          <div>
+            <label htmlFor="grant-result" className="mb-2 block text-[11px] font-semibold text-[#40505b]">{t("Краткое описание ожидаемого результата")}</label>
+            <textarea id="grant-result" className="prompt-input min-h-[84px]" value={expectedResult} onChange={(event) => setExpectedResult(event.target.value)} placeholder={t("Что должно быть достигнуто на выходе проекта?")} data-testid="input-grant-expected-result" />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button className="primary-button" type="submit" disabled={isGenerating} data-testid="button-generate-grant-concept">{isGenerating ? t("Подготавливаем концепцию…") : t("Подготовить концепцию проекта")} <ArrowRight size={15} /></button>
+          <button type="button" className="soft-button" onClick={persistCurrentDraft} data-testid="button-save-grant-draft">{t("Сохранить черновик локально")}</button>
+        </div>
+
+        {error && <p role="alert" className="text-[12px] text-[#a0443f]" data-testid="status-grant-error">{t(error)}</p>}
+        {notice && <p role="status" className="text-[12px] text-[#486857]" data-testid="status-grant-notice">{t(notice)}</p>}
+      </form>
+    </section>
+
+    {isAwaitingClarification && <section className="page-card mb-6 p-5 sm:p-7" aria-labelledby="grant-clarification-title">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h2 id="grant-clarification-title" className="serif m-0 text-[22px] text-[#293a49]">{t("Уточнение научной постановки")}</h2>
+        <span className="status-pill"><span className="status-dot" />{t("Нужно ответить на вопросы")}</span>
+      </div>
+      <form onSubmit={submitClarificationAnswers} className="space-y-4">
+        {clarificationQuestions.map((question, index) => <div key={`${question}-${index}`}>
+          <label htmlFor={`grant-clarification-${index}`} className="mb-2 block text-[11px] font-semibold text-[#40505b]">{index + 1}. {question}</label>
+          <button
+            type="button"
+            className="mb-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#52745d] underline underline-offset-2 hover:text-[#355d45] disabled:cursor-wait disabled:opacity-60"
+            onClick={() => void requestAnswerHelp(index)}
+            data-testid={`button-grant-answer-help-${index}`}
+            aria-expanded={activeHelpIndex === index}
+            aria-controls={`grant-answer-help-${index}`}
+          >
+            <Sparkles size={13} />
+            {answerHelpByIndex[index]?.loading ? t("Готовим подсказку…") : t("Помогите ответить")}
+          </button>
+          {activeHelpIndex === index && <div id={`grant-answer-help-${index}`} className="mb-3 rounded-md border border-[#d8e6d3] bg-[#f5f9f3] p-3 text-[11px] leading-relaxed text-[#46564e]" role="region" aria-label={`Подсказка к вопросу ${index + 1}`} data-testid={`grant-answer-help-${index}`}>
+            {answerHelpByIndex[index]?.loading && <p className="m-0 flex items-center gap-2 text-[#53645e]" role="status"><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#d8e1d8] border-t-[#4d795f]" />{t("ИИ готовит подсказку…")}</p>}
+            {answerHelpByIndex[index]?.error && <div>
+              <p className="mb-2 mt-0 text-[#a0443f]" role="alert">{t(answerHelpByIndex[index].error)}</p>
+              <button type="button" className="soft-button" onClick={() => { setAnswerHelpByIndex((current) => ({ ...current, [index]: { loading: false, error: '', result: null } })); void requestAnswerHelp(index, true); }}>{t("Попробовать снова")}</button>
+            </div>}
+            {answerHelpByIndex[index]?.result && <div className="space-y-2">
+              <p className="m-0"><strong>{t("Что означает вопрос:")}</strong> {answerHelpByIndex[index].result.meaning}</p>
+              <p className="m-0"><strong>{t("Что можно указать:")}</strong> {answerHelpByIndex[index].result.informationToProvide}</p>
+              <div>
+                <p className="mb-1 mt-0 font-semibold">{t("Условные примеры — не сведения о вашем проекте:")}</p>
+                <ul className="my-0 list-disc space-y-1 pl-5">
+                  {answerHelpByIndex[index].result.examples.map((example, exampleIndex) => <li key={`${exampleIndex}-${example}`}>{example}</li>)}
+                </ul>
+              </div>
+              <p className="m-0"><strong>{t("Если пока нет ответа:")}</strong> {answerHelpByIndex[index].result.ifUnknown}</p>
+            </div>}
+            <button type="button" className="mt-2 text-[10px] font-semibold text-[#60716a] underline underline-offset-2 hover:text-[#355d45]" onClick={() => setActiveHelpIndex(null)} data-testid={`button-hide-grant-answer-help-${index}`}>{t("Скрыть подсказку")}</button>
+          </div>}
+          <textarea id={`grant-clarification-${index}`} className="prompt-input min-h-[90px]" value={clarificationAnswers[index] ?? ''} onChange={(event) => setClarificationAnswers((current) => current.map((answer, answerIndex) => answerIndex === index ? event.target.value : answer))} data-testid={`input-grant-clarification-${index}`} />
+        </div>)}
+        <div className="flex flex-wrap items-center gap-3">
+          <button className="primary-button" type="submit" disabled={isGenerating} data-testid="button-submit-grant-clarification">{isGenerating ? t("Подготавливаем концепцию…") : t("Продолжить подготовку проекта")} <ArrowRight size={15} /></button>
+          <button type="button" className="soft-button" onClick={() => { setIsAwaitingClarification(false); setClarificationQuestions([]); setClarificationAnswers([]); setActiveHelpIndex(null); setAnswerHelpByIndex({}); setError(''); setNotice('Можно скорректировать исходные сведения и запустить проверку заново.'); }} data-testid="button-cancel-grant-clarification">{t("Изменить исходные данные")}</button>
+        </div>
+      </form>
+    </section>}
+
+    {concept && <section className="page-card mb-6 p-5 sm:p-7" aria-labelledby="grant-concept-title">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="eyebrow mb-2">{t("Предварительная концепция")}</p>
+          <h2 id="grant-concept-title" className="serif m-0 text-[22px] text-[#293a49]">{concept.title}</h2>
+        </div>
+        <span className="status-pill">{t("Требует проверки исследователем")}</span>
+      </div>
+      <div className="grid gap-4">
+        <label className="block text-[11px] font-semibold text-[#40505b]">{t("Название проекта ")}<input className="mt-1 block w-full rounded-md border border-[#dce2da] bg-white px-3 py-2 text-[13px] text-[#354754]" value={concept.title} onChange={(event) => setConcept((current) => current ? { ...current, title: event.target.value } : current)} />
+        </label>
+        <label className="block text-[11px] font-semibold text-[#40505b]">{t("Научная проблема ")}<textarea className="mt-1 block w-full rounded-md border border-[#dce2da] bg-white px-3 py-2 text-[12px] leading-relaxed text-[#354754]" rows={4} value={concept.scientificProblem} onChange={(event) => setConcept((current) => current ? { ...current, scientificProblem: event.target.value } : current)} />
+        </label>
+        <label className="block text-[11px] font-semibold text-[#40505b]">{t("Актуальность ")}<textarea className="mt-1 block w-full rounded-md border border-[#dce2da] bg-white px-3 py-2 text-[12px] leading-relaxed text-[#354754]" rows={4} value={concept.relevance} onChange={(event) => setConcept((current) => current ? { ...current, relevance: event.target.value } : current)} />
+        </label>
+        <label className="block text-[11px] font-semibold text-[#40505b]">{t("Цель проекта ")}<textarea className="mt-1 block w-full rounded-md border border-[#dce2da] bg-white px-3 py-2 text-[12px] leading-relaxed text-[#354754]" rows={3} value={concept.goal} onChange={(event) => setConcept((current) => current ? { ...current, goal: event.target.value } : current)} />
+        </label>
+        {renderTextList('tasks', 'Задачи проекта', 'Опишите ключевые задачи, которые необходимо решить для достижения цели.')} 
+        <label className="block text-[11px] font-semibold text-[#40505b]">{t("Предполагаемая научная новизна ")}<textarea className="mt-1 block w-full rounded-md border border-[#dce2da] bg-white px-3 py-2 text-[12px] leading-relaxed text-[#354754]" rows={4} value={concept.novelty} onChange={(event) => setConcept((current) => current ? { ...current, novelty: event.target.value } : current)} />
+        </label>
+        {renderTextList('methods', 'Методы исследования', 'Укажите методы, техники и подходы, которые могут быть использованы в проекте.')}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {renderTextList('expectedScientificResults', 'Ожидаемые научные результаты', 'Формулируйте результаты осторожно и без утверждений о подтверждённой новизне.')}
+          {renderTextList('expectedPracticalResults', 'Ожидаемые практические результаты', 'Опишите возможные применения, продукты и эффекты проекта, если они корректно прослеживаются из идеи.')}
+        </div>
+        {renderTextList('implementationStages', 'Основные этапы реализации', 'Сформируйте этапы, которые обеспечивают достижение цели на промежуточных этапах проекта.')}
+        {renderTextList('risks', 'Возможные риски', 'Перечислите риски, которые нужно учитывать при планировании исследования и реализации проекта.')}
+        <div className="rounded-md border border-[#d8e6d3] bg-[#f4faf3] p-4">
+          <h3 className="serif m-0 mb-3 text-[18px] text-[#2d3c4b]">{t("Предварительная научная оценка")}</h3>
+          <div className="grid gap-4">
+            {renderAssessmentList('strengths', 'Сильные стороны проекта', 'Опишите элементы, которые повышают релевантность и ясность проекта на раннем этапе.')}
+            {renderAssessmentList('justificationQuestions', 'Вопросы, требующие дополнительного обоснования', 'Выделите моменты, которые нужно проверить до подачи заявки или более серьёзной формулировки проекта.')}
+            {renderAssessmentList('limitations', 'Возможные ограничения', 'Отметьте ограничения текущей постановки, связанные с методологией, данными или объёмом проекта.')}
+            {renderAssessmentList('recommendations', 'Рекомендации по дальнейшей подготовке заявки', 'Опишите шаги, которые помогут уточнить проект и усилить его научную и практическую обоснованность.')}
+          </div>
+        </div>
+        <label className="block text-[11px] font-semibold text-[#40505b]">{t("Комментарий о предварительности ")}<textarea className="mt-1 block w-full rounded-md border border-[#dce2da] bg-white px-3 py-2 text-[12px] leading-relaxed text-[#354754]" rows={3} value={concept.disclaimer} onChange={(event) => setConcept((current) => current ? { ...current, disclaimer: event.target.value } : current)} />
+        </label>
+      </div>
+    </section>}
+
+    <GrantOpportunities projects={savedProjects} />
+
+    <section className="page-card mb-6 p-5 sm:p-6">
+      <div className="mb-3 flex items-center justify-between gap-3"><span className="status-pill">{t("Планируется")}</span><ShieldCheck size={16} className="text-[#52745d]" /></div>
+      <h2 className="serif mb-2 mt-0 text-[20px] text-[#293a49]">{t("Проверка заявки")}</h2>
+      <p className="mb-0 text-[12px] leading-relaxed text-[#5f6b6a]">{t("Следующий модуль будет проверять соответствие заявки требованиям конкурсной документации, но сейчас он не подключён и не используется автоматически.")}</p>
+    </section>
+  </main>;
+}
+

@@ -1,0 +1,1777 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: scientific-radar
+    description: Search scientific publications through scientific source adapters
+  - name: scientific-research
+    description: Analyze a research idea using an AI service and OpenAlex literature
+  - name: grants
+    description: Read verified grant announcements and prepare preliminary grant project materials
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /scientific/radar/search:
+    get:
+      operationId: searchScientificRadar
+      tags: [scientific-radar]
+      summary: Search scientific publications
+      description: Searches OpenAlex for real scholarly works matching a research query.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Research topic or keywords
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 300
+      responses:
+        "200":
+          description: Search results returned by the configured scientific source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScientificRadarResponse"
+        "400":
+          description: Search query is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Scientific source is unavailable or returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /scientific/sources/search:
+    get:
+      operationId: searchScientificSources
+      tags: [scientific-radar]
+      summary: Search OpenAlex publications with abstracts
+      description: Searches the existing OpenAlex adapter and includes abstracts when OpenAlex provides them.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          description: Research topic or keywords
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 300
+      responses:
+        "200":
+          description: Real OpenAlex publications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScientificRadarResponse"
+        "400":
+          description: Search query is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: OpenAlex is unavailable or returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /scientific/sources/analyze:
+    post:
+      operationId: analyzeScientificSource
+      tags: [scientific-research]
+      summary: Analyze an OpenAlex publication
+      description: Fetches the publication by its OpenAlex ID and asks the configured server-side AI for a cautious summary of available metadata and abstract.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeScientificSourceRequest"
+      responses:
+        "200":
+          description: AI summary grounded in the returned OpenAlex metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScientificSourceAnalysis"
+        "400":
+          description: OpenAlex ID is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Publication is not available in OpenAlex
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: OpenAlex or AI service is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /scientific/works/article/prepare:
+    post:
+      operationId: prepareScientificArticle
+      tags: [scientific-research]
+      summary: Prepare a working plan for a scientific article
+      description: Proposes a research article structure using the configured server-side AI and only verified OpenAlex metadata supplied by OpenAlex IDs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrepareScientificArticleRequest"
+      responses:
+        "200":
+          description: Preliminary article plan for researcher review and editing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScientificArticlePlan"
+        "400":
+          description: Idea or source IDs are invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: One or more sources are unavailable in OpenAlex
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: OpenAlex or AI service is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /scientific/works/article/section-help:
+    post:
+      operationId: assistScientificArticleSection
+      tags: [scientific-research]
+      summary: Provide bounded guidance for one article section
+      description: Uses server-verified OpenAlex metadata and the user-approved outline to suggest research notes and questions, not a finished article section.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistScientificArticleSectionRequest"
+      responses:
+        "200":
+          description: Research guidance for the selected article section
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScientificArticleSectionGuidance"
+        "400":
+          description: Section or source IDs are invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: One or more sources are unavailable in OpenAlex
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: OpenAlex or AI service is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /scientific/publications/prepare:
+    post:
+      operationId: preparePublicationChecklist
+      tags: [scientific-research]
+      summary: Analyze journal submission requirements
+      description: Analyzes only requirements explicitly supplied by the user and never searches or asserts an unverified journal or indexing claim.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreparePublicationChecklistRequest"
+      responses:
+        "200":
+          description: Checklist extracted from the provided journal requirements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicationChecklist"
+        "400":
+          description: Work information or requirements are invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: AI service is unavailable or returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service is not configured or account access is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /scientific/research/analyze:
+    post:
+      operationId: analyzeScientificIdea
+      tags: [scientific-research]
+      summary: Analyze a scientific research idea
+      description: Uses a configured AI model and real OpenAlex publication metadata to produce a preliminary research outline.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeScientificIdeaRequest"
+      responses:
+        "200":
+          description: Preliminary analysis generated by the configured AI model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScientificIdeaAnalysis"
+        "400":
+          description: Research idea is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: OpenAlex or the configured AI service is unavailable, or the AI response is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /scientific/research/check:
+    post:
+      operationId: checkScientificIdea
+      tags: [scientific-research]
+      summary: Compare a research idea with real OpenAlex publications
+      description: Uses OpenAI to extract search concepts and English synonyms, searches OpenAlex, then cautiously interprets only returned publication metadata.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckScientificIdeaRequest"
+      responses:
+        "200":
+          description: Real OpenAlex matches and cautious AI interpretation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckScientificIdeaResult"
+        "400":
+          description: Research idea is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: OpenAlex or OpenAI is unavailable, or the AI response is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /scientific/research/prepare:
+    post:
+      operationId: prepareScientificIdea
+      tags: [scientific-research]
+      summary: Assess idea scope and clarify it when needed
+      description: Uses the configured AI model to decide whether the research idea needs clarification and, if so, to ask focused questions or suggest a refined formulation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrepareScientificIdeaRequest"
+      responses:
+        "200":
+          description: Clarifying questions or a refined idea returned by the AI model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdeaPreparationResult"
+        "400":
+          description: Idea or clarification answers are invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The configured AI service is unavailable or returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /scientific/topics/recommend:
+    post:
+      operationId: recommendScientificTopics
+      tags: [scientific-research]
+      summary: Recommend research topics for the selected discovery mode
+      description: Uses OpenAI to suggest five research topics. The experienced-researcher mode also searches OpenAlex and bases trend commentary on actual returned publication metadata.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopicRecommendationRequest"
+      responses:
+        "200":
+          description: Five AI-generated topic suggestions and any relevant OpenAlex evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopicRecommendationResult"
+        "400":
+          description: Topic search request is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: OpenAlex or the configured AI service is unavailable, or the AI response is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /grants/catalog:
+    get:
+      operationId: getGrantCatalog
+      tags:
+        - grants
+      summary: List verified open grant competitions
+      description: Returns grant competitions whose official application status and dates have been verified. A refresh request rechecks official sources subject to the server refresh limit.
+      responses:
+        '200':
+          description: Successful result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantCatalog'
+        '400':
+          description: Request validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Operation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream source returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: Operation deadline exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: refresh
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - '1'
+  /grants/opportunities/search:
+    post:
+      operationId: searchGrantOpportunities
+      tags:
+        - grants
+      summary: Search official grant announcements
+      description: Searches configured official sources and returns matching announcements with verification status and criteria. Unconfirmed announcements are identified rather than presented as open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantSearchRequest'
+      responses:
+        '200':
+          description: Successful result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantSearchResult'
+        '400':
+          description: Request validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Operation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream source returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: Operation deadline exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /grants/concept/answer-help:
+    post:
+      operationId: prepareGrantAnswerHelp
+      tags:
+        - grants
+      summary: Explain a grant clarification question
+      description: Provides structured guidance for answering a clarification question using the supplied preliminary project details.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantAnswerHelpRequest'
+      responses:
+        '200':
+          description: Successful result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantAnswerHelp'
+        '400':
+          description: Request validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Operation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream source returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: Operation deadline exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /grants/concept/check:
+    post:
+      operationId: assessGrantProject
+      tags:
+        - grants
+      summary: Assess readiness of a research concept
+      description: Checks whether the supplied project concept needs clarification and returns focused questions when needed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantProjectRequest'
+      responses:
+        '200':
+          description: Successful result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantAssessment'
+        '400':
+          description: Request validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Operation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream source returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: Operation deadline exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /grants/concept/create:
+    post:
+      operationId: prepareGrantConcept
+      tags:
+        - grants
+      summary: Prepare a preliminary research concept
+      description: Creates a preliminary grant project concept from the supplied idea, direction, expected result, duration, and optional clarification answers. The output is for researcher review.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantConceptRequest'
+      responses:
+        '200':
+          description: Successful result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrantConcept'
+        '400':
+          description: Request validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Operation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream source returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: Operation deadline exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /scientific/assistant:
+    post:
+      operationId: assistScientificResearch
+      tags:
+        - scientific-research
+      summary: Respond to the research assistant conversation
+      description: Returns an AI-generated response to a bounded conversation. The latest message must be from the user; optional project context and response language are accepted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssistantRequest'
+      responses:
+        '200':
+          description: Successful result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistantResponse'
+        '400':
+          description: Request validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Operation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream source returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: Operation deadline exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ScientificRadarResponse:
+      type: object
+      properties:
+        provider:
+          type: string
+          enum: [OpenAlex]
+        query:
+          type: string
+        totalCount:
+          type: integer
+          minimum: 0
+        works:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScientificWork"
+      required: [provider, query, totalCount, works]
+    ScientificWork:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        authors:
+          type: array
+          items:
+            type: string
+        year:
+          type: [integer, "null"]
+        sourceName:
+          type: [string, "null"]
+        citationCount:
+          type: [integer, "null"]
+        doi:
+          type: [string, "null"]
+        url:
+          type: string
+        topics:
+          type: array
+          items:
+            type: string
+        abstract:
+          type: [string, "null"]
+          description: Abstract reconstructed from the OpenAlex abstract inverted index when available
+      required: [id, title, authors, year, sourceName, citationCount, doi, url, topics, abstract]
+    AnalyzeScientificSourceRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: "^(https://openalex\\.org/)?W[0-9]+$"
+          description: OpenAlex work ID or canonical OpenAlex work URL
+      required: [id]
+    ScientificSourceAnalysis:
+      type: object
+      properties:
+        summary:
+          type: string
+        keyPoints:
+          type: array
+          items:
+            type: string
+        limitations:
+          type: string
+      required: [summary, keyPoints, limitations]
+    PrepareScientificArticleRequest:
+      type: object
+      properties:
+        idea:
+          type: string
+          minLength: 2
+          maxLength: 5000
+        sourceIds:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          items:
+            type: string
+            pattern: "^(https://openalex\\.org/)?W[0-9]+$"
+      required: [idea, sourceIds]
+    ArticleSection:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        purpose:
+          type: string
+          minLength: 1
+          maxLength: 1200
+        guidingQuestions:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+            maxLength: 300
+      required: [id, title, purpose, guidingQuestions]
+    ScientificArticlePlan:
+      type: object
+      properties:
+        workingTitle:
+          type: string
+        problem:
+          type: string
+        goal:
+          type: string
+        tasks:
+          type: array
+          minItems: 3
+          maxItems: 6
+          items:
+            type: string
+        methodology:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            type: string
+        sections:
+          type: array
+          minItems: 4
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/ArticleSection"
+        evidenceNote:
+          type: string
+      required: [workingTitle, problem, goal, tasks, methodology, sections, evidenceNote]
+    AssistScientificArticleSectionRequest:
+      type: object
+      properties:
+        idea:
+          type: string
+          minLength: 2
+          maxLength: 5000
+        workingTitle:
+          type: string
+          minLength: 1
+          maxLength: 300
+        section:
+          $ref: "#/components/schemas/ArticleSection"
+        otherSections:
+          type: array
+          maxItems: 8
+          items:
+            type: string
+            maxLength: 300
+        sourceIds:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          items:
+            type: string
+            pattern: "^(https://openalex\\.org/)?W[0-9]+$"
+      required: [idea, workingTitle, section, otherSections, sourceIds]
+    ScientificArticleSectionGuidance:
+      type: object
+      properties:
+        researchNotes:
+          type: array
+          minItems: 2
+          maxItems: 6
+          items:
+            type: string
+        questionsForResearcher:
+          type: array
+          minItems: 2
+          maxItems: 5
+          items:
+            type: string
+        evidenceSummary:
+          type: string
+        limitations:
+          type: string
+      required: [researchNotes, questionsForResearcher, evidenceSummary, limitations]
+    PreparePublicationChecklistRequest:
+      type: object
+      properties:
+        workTitle:
+          type: string
+          minLength: 2
+          maxLength: 500
+        scienceArea:
+          type: string
+          minLength: 2
+          maxLength: 1000
+        journalName:
+          type: string
+          maxLength: 300
+        requirementsText:
+          type: string
+          minLength: 20
+          maxLength: 12000
+      required: [workTitle, scienceArea, journalName, requirementsText]
+    PublicationRequirementCriterion:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [scope, language, structure, abstract, keywords, formatting, other]
+        status:
+          type: string
+          enum: [specified, not_specified]
+        requirement:
+          type: string
+          maxLength: 1000
+        evidenceQuote:
+          type: string
+          maxLength: 500
+      required: [category, status, requirement, evidenceQuote]
+    PublicationChecklistItem:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 80
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        details:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        evidenceQuote:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required: [id, title, details, evidenceQuote]
+    PublicationChecklist:
+      type: object
+      properties:
+        criteria:
+          type: array
+          minItems: 6
+          maxItems: 7
+          items:
+            $ref: "#/components/schemas/PublicationRequirementCriterion"
+        checklist:
+          type: array
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/PublicationChecklistItem"
+        limitations:
+          type: string
+          minLength: 1
+          maxLength: 1500
+      required: [criteria, checklist, limitations]
+    AnalyzeScientificIdeaRequest:
+      type: object
+      properties:
+        idea:
+          type: string
+          minLength: 2
+          maxLength: 5000
+          description: Research idea to analyze
+      required: [idea]
+    PrepareScientificIdeaRequest:
+      type: object
+      properties:
+        idea:
+          type: string
+          minLength: 2
+          maxLength: 5000
+          description: Original research idea
+        answers:
+          type: array
+          minItems: 2
+          maxItems: 3
+          items:
+            type: string
+            minLength: 1
+            maxLength: 2000
+          description: Answers to the AI-generated clarifying questions
+        questions:
+          type: array
+          minItems: 2
+          maxItems: 3
+          items:
+            type: string
+            minLength: 1
+            maxLength: 1000
+          description: AI-generated clarifying questions corresponding to the answers
+      required: [idea]
+    IdeaPreparationResult:
+      type: object
+      properties:
+        needsClarification:
+          type: boolean
+        questions:
+          type: array
+          items:
+            type: string
+        refinedIdea:
+          type: string
+          description: AI-suggested concrete formulation, or empty when clarification is needed
+      required: [needsClarification, questions, refinedIdea]
+    TopicRecommendationRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [beginner, advanced]
+        interests:
+          type: string
+          minLength: 2
+          maxLength: 2000
+          description: Beginner mode research interests
+        preparation:
+          type: string
+          enum: [beginner, intermediate, advanced, unsure]
+        workType:
+          type: string
+          enum: [coursework, bachelor, master, dissertation, article, undecided]
+        preferredDirection:
+          type: string
+          minLength: 2
+          maxLength: 1000
+        scienceArea:
+          type: string
+          minLength: 2
+          maxLength: 300
+          description: Advanced mode scientific field
+        problems:
+          type: string
+          minLength: 2
+          maxLength: 2000
+          description: Advanced mode problems or questions of interest
+      required: [mode]
+    TopicRecommendation:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        problem:
+          type: string
+        rationale:
+          type: string
+      required: [title, description, problem, rationale]
+    TopicRecommendationResult:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [beginner, advanced]
+        topics:
+          type: array
+          minItems: 5
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/TopicRecommendation"
+        trendSummary:
+          type: string
+          description: AI summary of emerging and underexplored questions, with limits of metadata made clear
+        literatureSufficient:
+          type: boolean
+          description: Whether enough OpenAlex records were returned to support trend analysis
+        sourceCount:
+          type: integer
+          minimum: 0
+        evidenceNote:
+          type: string
+          description: Explicit evidence basis and limitations
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScientificWork"
+      required: [mode, topics, trendSummary, literatureSufficient, sourceCount, evidenceNote, sources]
+    CheckScientificIdeaRequest:
+      type: object
+      properties:
+        idea:
+          type: string
+          minLength: 2
+          maxLength: 5000
+          description: Research idea or question to compare with published literature
+      required: [idea]
+    IdeaPublicationMatch:
+      type: object
+      properties:
+        publication:
+          $ref: "#/components/schemas/ScientificWork"
+        matchReason:
+          type: string
+          description: AI interpretation of how the publication metadata relates to the idea
+        similarity:
+          type: string
+          enum: [high, partial, adjacent, insufficient]
+          description: Preliminary thematic classification based only on available OpenAlex metadata
+        evidenceLevel:
+          type: string
+          enum: [adequate, limited, insufficient]
+          description: Whether available metadata and abstract support a meaningful comparison
+      required: [publication, matchReason, similarity, evidenceLevel]
+    IdeaCheckSearchResult:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Individual English query sent to OpenAlex
+        totalCount:
+          type: integer
+          minimum: 0
+          description: OpenAlex-reported count for this individual query
+      required: [query, totalCount]
+    CheckScientificIdeaResult:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Primary short English query sent to OpenAlex
+        keywords:
+          type: array
+          items:
+            type: string
+        englishSynonyms:
+          type: array
+          items:
+            type: string
+        totalCount:
+          type: integer
+          minimum: 0
+          description: Number of unique normalized OpenAlex records collected across executed queries
+        searches:
+          type: array
+          items:
+            $ref: "#/components/schemas/IdeaCheckSearchResult"
+          description: Queries sent to OpenAlex and the matching record count reported for each
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/IdeaPublicationMatch"
+        summary:
+          type: string
+          description: Cautious summary distinguishing search results from claims of novelty
+        refinementDirections:
+          type: array
+          items:
+            type: string
+          description: Potential ways to narrow or distinguish the idea for further investigation
+        evidenceNote:
+          type: string
+          description: Limits of metadata and the evidence used in this result
+      required: [query, keywords, englishSynonyms, searches, totalCount, matches, summary, refinementDirections, evidenceNote]
+    ScientificIdeaAnalysis:
+      type: object
+      properties:
+        problem:
+          type: string
+          description: Research problem identified from the idea and available literature
+        relevance:
+          type: string
+          description: Rationale for the potential relevance of the research
+        possibleNovelty:
+          type: string
+          description: Preliminary, qualified assessment of potential novelty
+        topicOptions:
+          type: array
+          minItems: 3
+          maxItems: 5
+          items:
+            type: string
+        goal:
+          type: string
+        tasks:
+          type: array
+          minItems: 3
+          maxItems: 6
+          items:
+            type: string
+        recommendedMethods:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items:
+            type: string
+          description: Preliminary research methods matched to the idea, with necessary caveats
+        researchPlan:
+          type: array
+          minItems: 4
+          maxItems: 6
+          items:
+            type: string
+          description: Actionable sequential steps for developing the research
+        literatureSearchQueries:
+          type: array
+          minItems: 3
+          maxItems: 5
+          items:
+            type: string
+          description: Search queries to help discover related literature
+        evidenceNote:
+          type: string
+          description: Limits and evidential basis of the preliminary analysis
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScientificWork"
+      required: [problem, relevance, possibleNovelty, topicOptions, goal, tasks, recommendedMethods, researchPlan, literatureSearchQueries, evidenceNote, sources]
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    GrantCatalogItem:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        organizer:
+          type: string
+        program:
+          type: string
+        directions:
+          type: string
+        fundingAmount:
+          type: string
+        applicationStartDate:
+          type: string
+        applicationEndDate:
+          type: string
+        eligibility:
+          type: string
+        researcherCategory:
+          type: string
+        country:
+          type: string
+        region:
+          type: string
+        sourceName:
+          type: string
+        officialUrl:
+          type: string
+        lastCheckedAt:
+          type: string
+        applicationEndTime:
+          type:
+            - string
+            - 'null'
+        daysRemaining:
+          type: integer
+          minimum: 0
+      required:
+        - id
+        - title
+        - organizer
+        - program
+        - directions
+        - fundingAmount
+        - applicationStartDate
+        - applicationEndDate
+        - eligibility
+        - researcherCategory
+        - country
+        - region
+        - sourceName
+        - officialUrl
+        - lastCheckedAt
+        - applicationEndTime
+        - daysRemaining
+    GrantCatalogSource:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+        message:
+          type: string
+        state:
+          type: string
+          enum:
+            - connected
+            - limited
+            - error
+        checkedAt:
+          type:
+            - string
+            - 'null'
+        openCount:
+          type: integer
+          minimum: 0
+        unconfirmedCount:
+          type: integer
+          minimum: 0
+      required:
+        - id
+        - name
+        - url
+        - message
+        - state
+        - checkedAt
+        - openCount
+        - unconfirmedCount
+    GrantCatalog:
+      type: object
+      properties:
+        checkedAt:
+          type: string
+        sourceName:
+          type: string
+        sourceUrl:
+          type: string
+        message:
+          type: string
+        sourceAvailable:
+          type: boolean
+        cached:
+          type: boolean
+        opportunities:
+          type: array
+          items:
+            $ref: '#/components/schemas/GrantCatalogItem'
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/GrantCatalogSource'
+      required:
+        - checkedAt
+        - sourceName
+        - sourceUrl
+        - message
+        - sourceAvailable
+        - cached
+        - opportunities
+        - sources
+    GrantSearchRequest:
+      type: object
+      properties:
+        direction:
+          type: string
+          minLength: 0
+          maxLength: 300
+        country:
+          type: string
+          minLength: 1
+          maxLength: 300
+        region:
+          type: string
+          minLength: 0
+          maxLength: 300
+        organizationType:
+          type: string
+          minLength: 0
+          maxLength: 300
+        projectStage:
+          type: string
+          minLength: 0
+          maxLength: 300
+        requestedFunding:
+          type: string
+          minLength: 0
+          maxLength: 300
+      required:
+        - direction
+        - country
+        - region
+        - organizationType
+        - projectStage
+        - requestedFunding
+    GrantSearchItem:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        organizer:
+          type: string
+        description:
+          type: string
+        direction:
+          type: string
+        country:
+          type: string
+        region:
+          type: string
+        deadline:
+          type: string
+        eligibility:
+          type: string
+        fundingAmount:
+          type: string
+        fundingType:
+          type: string
+        fundingForm:
+          type: string
+        statusLabel:
+          type: string
+        sourceUrl:
+          type: string
+        checkedAt:
+          type: string
+        verificationNote:
+          type: string
+        applicationStartDate:
+          type:
+            - string
+            - 'null'
+        applicationEndDate:
+          type:
+            - string
+            - 'null'
+        applicationEndTime:
+          type:
+            - string
+            - 'null'
+        documentsUrl:
+          type:
+            - string
+            - 'null'
+        status:
+          type: string
+          enum:
+            - open
+            - upcoming
+            - closed
+            - unconfirmed
+        criteria:
+          type: object
+          properties:
+            direction:
+              type: string
+              enum:
+                - matched
+                - not_found
+                - not_requested
+            region:
+              type: string
+              enum:
+                - matched
+                - not_found
+                - not_requested
+            organizationType:
+              type: string
+              enum:
+                - mentioned
+                - not_found
+                - not_requested
+            projectStage:
+              type: string
+              enum:
+                - mentioned
+                - not_found
+                - not_requested
+            fundingAmount:
+              type: string
+              enum:
+                - matched
+                - not_specified
+                - not_requested
+          required:
+            - direction
+            - region
+            - organizationType
+            - projectStage
+            - fundingAmount
+      required:
+        - id
+        - title
+        - organizer
+        - description
+        - direction
+        - country
+        - region
+        - deadline
+        - eligibility
+        - fundingAmount
+        - fundingType
+        - fundingForm
+        - statusLabel
+        - sourceUrl
+        - checkedAt
+        - verificationNote
+        - applicationStartDate
+        - applicationEndDate
+        - applicationEndTime
+        - documentsUrl
+        - status
+        - criteria
+    GrantSearchResult:
+      type: object
+      properties:
+        checkedAt:
+          type: string
+        sourceName:
+          type: string
+        sourceUrl:
+          type: string
+        message:
+          type: string
+        sourceAvailable:
+          type: boolean
+        opportunities:
+          type: array
+          items:
+            $ref: '#/components/schemas/GrantSearchItem'
+      required:
+        - checkedAt
+        - sourceName
+        - sourceUrl
+        - message
+        - sourceAvailable
+        - opportunities
+    GrantProjectRequest:
+      type: object
+      properties:
+        idea:
+          type: string
+          minLength: 2
+          maxLength: 5000
+        direction:
+          type: string
+          minLength: 2
+          maxLength: 200
+        expectedResult:
+          type: string
+          minLength: 2
+          maxLength: 2000
+        durationMonths:
+          type: integer
+          minimum: 3
+          maximum: 84
+      required:
+        - idea
+        - direction
+        - expectedResult
+        - durationMonths
+    GrantAnswerHelpRequest:
+      type: object
+      properties:
+        idea:
+          type: string
+          minLength: 2
+          maxLength: 5000
+        direction:
+          type: string
+          minLength: 2
+          maxLength: 200
+        expectedResult:
+          type: string
+          minLength: 2
+          maxLength: 2000
+        durationMonths:
+          type: integer
+          minimum: 3
+          maximum: 84
+        question:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      required:
+        - idea
+        - direction
+        - expectedResult
+        - durationMonths
+        - question
+    GrantConceptRequest:
+      type: object
+      properties:
+        idea:
+          type: string
+          minLength: 2
+          maxLength: 5000
+        direction:
+          type: string
+          minLength: 2
+          maxLength: 200
+        expectedResult:
+          type: string
+          minLength: 2
+          maxLength: 2000
+        durationMonths:
+          type: integer
+          minimum: 3
+          maximum: 84
+        clarificationAnswers:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+            minLength: 1
+            maxLength: 2000
+      required:
+        - idea
+        - direction
+        - expectedResult
+        - durationMonths
+    GrantAnswerHelp:
+      type: object
+      properties:
+        meaning:
+          type: string
+        informationToProvide:
+          type: string
+        ifUnknown:
+          type: string
+        examples:
+          type: array
+          items:
+            type: string
+      required:
+        - meaning
+        - informationToProvide
+        - ifUnknown
+        - examples
+    GrantAssessment:
+      type: object
+      properties:
+        needsClarification:
+          type: boolean
+        questions:
+          type: array
+          items:
+            type: string
+        rationale:
+          type: string
+      required:
+        - needsClarification
+        - questions
+        - rationale
+    GrantConcept:
+      type: object
+      properties:
+        title:
+          type: string
+        scientificProblem:
+          type: string
+        relevance:
+          type: string
+        goal:
+          type: string
+        novelty:
+          type: string
+        disclaimer:
+          type: string
+        tasks:
+          type: array
+          items:
+            type: string
+        methods:
+          type: array
+          items:
+            type: string
+        expectedScientificResults:
+          type: array
+          items:
+            type: string
+        expectedPracticalResults:
+          type: array
+          items:
+            type: string
+        implementationStages:
+          type: array
+          items:
+            type: string
+        risks:
+          type: array
+          items:
+            type: string
+        preliminaryAssessment:
+          type: object
+          properties:
+            strengths:
+              type: array
+              items:
+                type: string
+            justificationQuestions:
+              type: array
+              items:
+                type: string
+            limitations:
+              type: array
+              items:
+                type: string
+            recommendations:
+              type: array
+              items:
+                type: string
+          required:
+            - strengths
+            - justificationQuestions
+            - limitations
+            - recommendations
+      required:
+        - title
+        - scientificProblem
+        - relevance
+        - goal
+        - novelty
+        - disclaimer
+        - tasks
+        - methods
+        - expectedScientificResults
+        - expectedPracticalResults
+        - implementationStages
+        - risks
+        - preliminaryAssessment
+    AssistantMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+        content:
+          type: string
+          minLength: 1
+          maxLength: 4000
+      required:
+        - role
+        - content
+    AssistantRequest:
+      type: object
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 12
+          items:
+            $ref: '#/components/schemas/AssistantMessage'
+        context:
+          type: string
+          maxLength: 4000
+        language:
+          type: string
+          enum:
+            - ru
+            - kk
+      required:
+        - messages
+    AssistantResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+          minLength: 1
+          maxLength: 4000
+      required:
+        - reply

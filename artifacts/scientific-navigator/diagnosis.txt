@@ -1,0 +1,13 @@
+[31mfailed to load config from C:\Users\Acer\Downloads\Nauchnyi-navighator-main\Nauchnyi-navighator-main\artifacts\scientific-navigator\vite.config.ts[39m
+[31merror when starting dev server:
+Error: Cannot find native binding. npm has a bug related to optional dependencies (https://github.com/npm/cli/issues/4828). Please try `npm i` again after removing both package-lock.json and node_modules directory.
+    at Object.<anonymous> (C:\Users\Acer\Downloads\Nauchnyi-navighator-main\Nauchnyi-navighator-main\node_modules\.pnpm\@tailwindcss+oxide@4.3.3\node_modules\@tailwindcss\oxide\index.js:573:11)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module._load (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at loadCJSModuleWithModuleLoad (node:internal/modules/esm/translators:372:15)
+    at ModuleWrap.<anonymous> (node:internal/modules/esm/translators:244:9)
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26[39m

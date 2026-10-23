@@ -1,0 +1,21 @@
+const fs = require('node:fs');
+const path='artifacts/scientific-navigator/src/features/research/shared.ts';
+let source=fs.readFileSync(path,'utf8');
+const replaceFunction = (name,body) => {
+ const start=source.indexOf('export function '+name+'(');
+ const end=source.indexOf('\nexport ',start+1);
+ source=source.slice(0,start)+body+'\n'+source.slice(end);
+};
+source=source.replace("import { useEffect, useState }", "import { useEffect, useState, useSyncExternalStore }");
+source="import { createCollectionStore } from '@/lib/persistence';\nimport { articleSchema, draftSchema, sourceSchema, publicationSchema, researchProfileSchema } from './schemas';\n"+source;
+source=source.replace('type ArticleDraft = {','type ArticleDraft = {\n  revision?: number;').replace('type PublicationPrepDraft = {','type PublicationPrepDraft = {\n  revision?: number;');
+replaceFunction('isResearchProfile',`export function isResearchProfile(value: unknown): value is ResearchProfile { return researchProfileSchema.safeParse(value).success; }`);
+replaceFunction('getSavedSources',`export function getSavedSources(): SavedSource[] { return sourceStore.get(); }`);
+replaceFunction('saveSources',`export function saveSources(sources: SavedSource[]) { sourceStore.set(sources); }`);
+replaceFunction('getPublicationPrepDrafts',`export function getPublicationPrepDrafts(): PublicationPrepDraft[] { return publicationStore.get(); }`);
+replaceFunction('getDrafts',`export function getDrafts(): Draft[] { return draftStore.get(); }`);
+replaceFunction('saveDrafts',`export function saveDrafts(drafts: Draft[]) { draftStore.set(drafts); }`);
+replaceFunction('getArticleDrafts',`export function getArticleDrafts(): ArticleDraft[] { return articleStore.get(); }`);
+source=source.replace('const [drafts, setDrafts] = useState<Draft[]>([]);\n  useEffect(() => { setDrafts(getDrafts()); }, []);','const drafts = useSyncExternalStore(draftStore.subscribe, draftStore.get, draftStore.get);\n  const setDrafts = (_next: Draft[]) => {};');
+source+=`\nexport const draftStore = createCollectionStore<Draft>(DRAFTS_KEY, draftSchema, item => item.id);\nexport const sourceStore = createCollectionStore<SavedSource>(SOURCE_LIBRARY_KEY, sourceSchema, item => item.work.id);\nexport const articleStore = createCollectionStore<ArticleDraft>(ARTICLE_DRAFTS_KEY, articleSchema, item => item.id);\nexport const publicationStore = createCollectionStore<PublicationPrepDraft>(PUBLICATION_PREP_KEY, publicationSchema, item => item.id);\n`;
+fs.writeFileSync(path,source);
